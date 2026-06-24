@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minesweeper — BodhiProtocol</title>
+  <meta property="og:title" content="Minesweeper — BodhiProtocol" />
+  <meta property="og:description" content="Classic Minesweeper with Kids & Adult modes. Think. Flag. Survive." />
+  <meta property="og:image" content="assets/preview.svg" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --border: #d0d7de;
+      --text-primary: #1f2328;
+      --text-secondary: #656d76;
+      --accent: #1a6e43;
+      --accent2: #0550ae;
+      --cell-hidden: #c8cdd4;
+      --cell-hidden-hover: #b0b7bf;
+      --cell-revealed: #dde1e6;
+      --cell-kids: #e8f4fd;
+      --radius: 6px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --border: #30363d;
+        --text-primary: #e6edf3;
+        --text-secondary: #8b949e;
+        --cell-hidden: #3d444d;
+        --cell-hidden-hover: #484f58;
+        --cell-revealed: #21262d;
+        --cell-kids: #1a2d3d;
+      }
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+      gap: 0.85rem;
+    }
+
+    /* ── Banner ─────────────────────────────── */
+    #banner { width: 100%; max-width: 720px; border-radius: 12px; overflow: hidden; }
+    #banner svg { display: block; width: 100%; height: auto; }
+
+    /* ── Mode toggle ─────────────────────────── */
+    #mode-toggle {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+    }
+    #mode-toggle button {
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #mode-toggle button.active {
+      background: var(--text-primary);
+      color: var(--bg);
+    }
+
+    /* ── HUD ─────────────────────────────────── */
+    #hud {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      width: 100%;
+      max-width: 520px;
+      font-family: monospace;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    #hud .hud-val { color: #e55; min-width: 44px; }
+    #hud .hud-timer { color: #1a7; min-width: 44px; text-align: right; }
+    #smiley {
+      font-size: 26px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+      transition: transform 0.1s;
+    }
+    #smiley:hover { transform: scale(1.15); }
+
+    /* ── Grid ────────────────────────────────── */
+    #grid-wrap {
+      overflow: auto;
+      max-width: 100%;
+    }
+    #grid {
+      display: inline-grid;
+      gap: 2px;
+      background: var(--border);
+      border: 2px solid var(--border);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .cell {
+      width: var(--cell);
+      height: var(--cell);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      font-size: calc(var(--cell) * 0.44);
+      font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.08s;
+      line-height: 1;
+    }
+    .cell.hidden {
+      background: var(--cell-hidden);
+    }
+    .cell.hidden:hover { background: var(--cell-hidden-hover); }
+    .cell.flagged {
+      background: var(--cell-hidden);
+      font-size: calc(var(--cell) * 0.5);
+    }
+    .cell.revealed {
+      background: var(--cell-revealed);
+      cursor: default;
+    }
+    .cell.exploded {
+      background: #c0392b;
+    }
+    .cell.mine-shown {
+      background: var(--cell-revealed);
+    }
+    .cell.wrongflag {
+      background: #c0392b;
+    }
+
+    /* Classic Minesweeper number colors */
+    .n1 { color: #1a73e8; }
+    .n2 { color: #2e7d32; }
+    .n3 { color: #d32f2f; }
+    .n4 { color: #1565c0; }
+    .n5 { color: #b71c1c; }
+    .n6 { color: #00838f; }
+    .n7 { color: #212121; }
+    .n8 { color: #616161; }
+
+    /* Kids number colors */
+    .kn1 { color: #e91e63; }
+    .kn2 { color: #00897b; }
+    .kn3 { color: #f57c00; }
+    .kn4 { color: #7b1fa2; }
+    .kn5 { color: #c62828; }
+    .kn6 { color: #0277bd; }
+    .kn7 { color: #2e7d32; }
+    .kn8 { color: #4e342e; }
+
+    /* ── Message ─────────────────────────────── */
+    #msg {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      min-height: 1.5em;
+      text-align: center;
+    }
+
+    /* ── Footer ──────────────────────────────── */
+    footer {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      margin-top: 0.5rem;
+    }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+
+<!-- ── Banner SVG ──────────────────────────────────────────────────────── -->
+<div id="banner">
+<svg viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg-g" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#1a2332"/>
+    </linearGradient>
+    <radialGradient id="sphere-g" cx="33%" cy="28%" r="72%">
+      <stop offset="0%"   stop-color="#9a9a9a"/>
+      <stop offset="35%"  stop-color="#444"/>
+      <stop offset="100%" stop-color="#080808"/>
+    </radialGradient>
+    <radialGradient id="glow-g" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ff3300" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#ff3300" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spark-g" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="40%"  stop-color="#ffe066"/>
+      <stop offset="100%" stop-color="#ff6600" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="fshadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="2" dy="5" stdDeviation="5" flood-color="#000" flood-opacity="0.7"/>
+    </filter>
+    <filter id="fglow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="ftextglow" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="720" height="180" fill="url(#bg-g)"/>
+
+  <!-- Subtle grid lines in background -->
+  <g stroke="#3a7bd5" stroke-width="0.4" opacity="0.07">
+    <line x1="0" y1="20"  x2="720" y2="20"/>
+    <line x1="0" y1="40"  x2="720" y2="40"/>
+    <line x1="0" y1="60"  x2="720" y2="60"/>
+    <line x1="0" y1="80"  x2="720" y2="80"/>
+    <line x1="0" y1="100" x2="720" y2="100"/>
+    <line x1="0" y1="120" x2="720" y2="120"/>
+    <line x1="0" y1="140" x2="720" y2="140"/>
+    <line x1="0" y1="160" x2="720" y2="160"/>
+    <line x1="20"  y1="0" x2="20"  y2="180"/>
+    <line x1="40"  y1="0" x2="40"  y2="180"/>
+    <line x1="60"  y1="0" x2="60"  y2="180"/>
+    <line x1="80"  y1="0" x2="80"  y2="180"/>
+    <line x1="100" y1="0" x2="100" y2="180"/>
+    <line x1="120" y1="0" x2="120" y2="180"/>
+    <line x1="140" y1="0" x2="140" y2="180"/>
+    <line x1="160" y1="0" x2="160" y2="180"/>
+    <line x1="180" y1="0" x2="180" y2="180"/>
+  </g>
+
+  <!-- Decorative small revealed cells (top-left zone) -->
+  <rect x="12"  y="12"  width="18" height="18" rx="2" fill="#1e3a2f" opacity="0.6"/>
+  <text x="21"  y="25"  text-anchor="middle" font-size="10" fill="#2e7d32" font-weight="800">2</text>
+  <rect x="32"  y="12"  width="18" height="18" rx="2" fill="#1e2d3a" opacity="0.6"/>
+  <text x="41"  y="25"  text-anchor="middle" font-size="10" fill="#1a73e8" font-weight="800">1</text>
+  <rect x="12"  y="32"  width="18" height="18" rx="2" fill="#21262d" opacity="0.6"/>
+  <rect x="32"  y="32"  width="18" height="18" rx="2" fill="#1e3a2f" opacity="0.6"/>
+  <text x="41"  y="45"  text-anchor="middle" font-size="10" fill="#2e7d32" font-weight="800">3</text>
+
+  <!-- Soft red glow behind mine -->
+  <circle cx="113" cy="92" r="68" fill="url(#glow-g)"/>
+
+  <!-- Mine spikes (behind sphere) -->
+  <g stroke="#5a5a5a" stroke-width="7" stroke-linecap="round" filter="url(#fshadow)">
+    <line x1="153" y1="92"  x2="178" y2="92"/>
+    <line x1="141" y1="120" x2="157" y2="136"/>
+    <line x1="113" y1="132" x2="113" y2="157"/>
+    <line x1="85"  y1="120" x2="69"  y2="136"/>
+    <line x1="73"  y1="92"  x2="48"  y2="92"/>
+    <line x1="85"  y1="64"  x2="69"  y2="48"/>
+    <line x1="113" y1="52"  x2="113" y2="27"/>
+    <line x1="141" y1="64"  x2="157" y2="48"/>
+  </g>
+  <!-- Spike tip dots -->
+  <g fill="#6a6a6a">
+    <circle cx="179" cy="92"  r="5"/>
+    <circle cx="158" cy="137" r="5"/>
+    <circle cx="113" cy="158" r="5"/>
+    <circle cx="68"  cy="137" r="5"/>
+    <circle cx="47"  cy="92"  r="5"/>
+    <circle cx="68"  cy="47"  r="5"/>
+    <circle cx="113" cy="26"  r="5"/>
+    <circle cx="158" cy="47"  r="5"/>
+  </g>
+
+  <!-- Mine sphere -->
+  <circle cx="113" cy="92" r="42" fill="url(#sphere-g)" filter="url(#fshadow)"/>
+
+  <!-- Sphere shine / highlight -->
+  <ellipse cx="99" cy="77" rx="16" ry="11" fill="white" opacity="0.18" transform="rotate(-35 99 77)"/>
+  <circle  cx="96" cy="73" r="6"   fill="white" opacity="0.35"/>
+  <circle  cx="93" cy="70" r="2.5" fill="white" opacity="0.65"/>
+
+  <!-- Fuse cord -->
+  <path d="M113,52 C122,38 140,24 155,15" stroke="#7a5010" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+  <path d="M113,52 C122,38 140,24 155,15" stroke="#c08030" stroke-width="1.5" stroke-linecap="round" fill="none" stroke-dasharray="4,4"/>
+
+  <!-- Fuse spark -->
+  <circle cx="155" cy="15" r="9"  fill="url(#spark-g)" filter="url(#fglow)"/>
+  <circle cx="155" cy="15" r="4"  fill="#fff9c4"/>
+  <circle cx="155" cy="15" r="2"  fill="#ffffff"/>
+
+  <!-- Title -->
+  <text x="208" y="86"
+        font-family="system-ui,-apple-system,Arial,sans-serif"
+        font-size="50" font-weight="900"
+        fill="white" letter-spacing="-1.5"
+        filter="url(#ftextglow)">MINESWEEPER</text>
+
+  <!-- Tagline -->
+  <text x="211" y="114"
+        font-family="system-ui,-apple-system,Arial,sans-serif"
+        font-size="15" fill="#6a8fa8" letter-spacing="3.5" font-weight="500">THINK · FLAG · SURVIVE</text>
+
+  <!-- Separator -->
+  <line x1="208" y1="126" x2="700" y2="126" stroke="#2a3a4a" stroke-width="1"/>
+
+  <!-- Kids mode badge -->
+  <rect x="208" y="136" width="76" height="24" rx="5" fill="#1a4a2e"/>
+  <text x="246" y="152" text-anchor="middle" font-family="system-ui" font-size="12" fill="#4caf80" font-weight="600">🧒 Kids</text>
+
+  <!-- Adult mode badge -->
+  <rect x="292" y="136" width="80" height="24" rx="5" fill="#0d2a4a"/>
+  <text x="332" y="152" text-anchor="middle" font-family="system-ui" font-size="12" fill="#5a9fd4" font-weight="600">🧠 Adult</text>
+
+  <!-- GitHub mark + BodhiProtocol -->
+  <g transform="translate(596,142) scale(0.83)" fill="#8b949e">
+    <path d="M12 0C5.37 0 0 5.373 0 12c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12c0-6.627-5.373-12-12-12z"/>
+  </g>
+  <text x="622" y="158" font-family="system-ui,-apple-system,sans-serif" font-size="13" fill="#8b949e" font-weight="500">BodhiProtocol</text>
+</svg>
+</div>
+
+<!-- ── Mode Toggle ──────────────────────────────────────────────────────── -->
+<div id="mode-toggle">
+  <button id="btn-kids"  class="active" onclick="setMode('kids')">🧒 Kids</button>
+  <button id="btn-adult"           onclick="setMode('adult')">🧠 Adult</button>
+</div>
+
+<!-- ── HUD ─────────────────────────────────────────────────────────────── -->
+<div id="hud">
+  <span>💣 <span class="hud-val" id="mines-left">008</span></span>
+  <button id="smiley" onclick="initGame()">😊</button>
+  <span>⏱ <span class="hud-timer" id="timer">000</span></span>
+</div>
+
+<!-- ── Grid ────────────────────────────────────────────────────────────── -->
+<div id="grid-wrap">
+  <div id="grid"></div>
+</div>
+
+<!-- ── Message ─────────────────────────────────────────────────────────── -->
+<div id="msg"></div>
+
+<footer>
+  Right-click or long-press to flag &nbsp;·&nbsp;
+  <a href="https://github.com/BodhiProtocol" target="_blank">BodhiProtocol</a>
+</footer>
+
+<script>
+const MODES = {
+  kids:  { rows: 8,  cols: 8,  mines: 8,  cell: 44, numClass: 'kn' },
+  adult: { rows: 16, cols: 16, mines: 40, cell: 28, numClass: 'n'  }
+};
+
+let mode = 'kids';
+let grid = [];
+let state = 'idle'; // idle | playing | won | lost
+let flagCount = 0;
+let timerVal = 0;
+let timerTick = null;
+let firstClick = true;
+
+/* ── Init ── */
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-kids').classList.toggle('active', m === 'kids');
+  document.getElementById('btn-adult').classList.toggle('active', m === 'adult');
+  initGame();
+}
+
+function initGame() {
+  clearInterval(timerTick);
+  timerVal = 0;
+  flagCount = 0;
+  firstClick = true;
+  state = 'idle';
+
+  const { rows, cols } = MODES[mode];
+  grid = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () =>
+      ({ mine: false, revealed: false, flagged: false, adj: 0, exploded: false })
+    )
+  );
+
+  document.getElementById('smiley').textContent = '😊';
+  document.getElementById('msg').textContent = '';
+  updateHUD();
+  renderGrid();
+}
+
+/* ── Mine placement (after first click) ── */
+function placeMines(safeR, safeC) {
+  const { rows, cols, mines } = MODES[mode];
+  const safe = new Set();
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      const nr = safeR + dr, nc = safeC + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols)
+        safe.add(nr * cols + nc);
+    }
+
+  const pool = [];
+  for (let i = 0; i < rows * cols; i++) if (!safe.has(i)) pool.push(i);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  for (let i = 0; i < mines; i++) {
+    grid[Math.floor(pool[i] / cols)][pool[i] % cols].mine = true;
+  }
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      if (!grid[r][c].mine) grid[r][c].adj = countAdj(r, c);
+}
+
+function countAdj(r, c) {
+  const { rows, cols } = MODES[mode];
+  let n = 0;
+  for (let dr = -1; dr <= 1; dr++)
+    for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].mine) n++;
+    }
+  return n;
+}
+
+/* ── Flood reveal ── */
+function reveal(r, c) {
+  const { rows, cols } = MODES[mode];
+  if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+  const cell = grid[r][c];
+  if (cell.revealed || cell.flagged) return;
+  cell.revealed = true;
+  if (!cell.mine && cell.adj === 0)
+    for (let dr = -1; dr <= 1; dr++)
+      for (let dc = -1; dc <= 1; dc++)
+        if (dr || dc) reveal(r + dr, c + dc);
+}
+
+/* ── Handlers ── */
+function handleClick(r, c) {
+  if (state === 'won' || state === 'lost') return;
+  const cell = grid[r][c];
+  if (cell.revealed || cell.flagged) return;
+
+  if (firstClick) {
+    firstClick = false;
+    state = 'playing';
+    placeMines(r, c);
+    timerTick = setInterval(() => {
+      timerVal = Math.min(timerVal + 1, 999);
+      document.getElementById('timer').textContent = String(timerVal).padStart(3, '0');
+    }, 1000);
+  }
+
+  if (cell.mine) {
+    cell.revealed = true;
+    cell.exploded = true;
+    state = 'lost';
+    clearInterval(timerTick);
+    revealAllMines();
+    document.getElementById('smiley').textContent = '😵';
+    document.getElementById('msg').textContent =
+      mode === 'kids' ? '😢 Oops! Try again — you\'ve got this!' : '💥 Game Over. Better luck next time.';
+    renderGrid();
+    return;
+  }
+
+  reveal(r, c);
+
+  if (checkWin()) {
+    state = 'won';
+    clearInterval(timerTick);
+    document.getElementById('smiley').textContent = '😎';
+    document.getElementById('msg').textContent =
+      mode === 'kids' ? '🎉 Amazing! You Won!' : `✅ Board cleared! Time: ${timerVal}s`;
+    autoFlagRemaining();
+  }
+
+  updateHUD();
+  renderGrid();
+}
+
+function handleFlag(r, c, e) {
+  if (e) e.preventDefault();
+  if (state === 'won' || state === 'lost' || state === 'idle') return;
+  const cell = grid[r][c];
+  if (cell.revealed) return;
+  cell.flagged = !cell.flagged;
+  flagCount += cell.flagged ? 1 : -1;
+  updateHUD();
+  renderGrid();
+}
+
+function revealAllMines() {
+  const { rows, cols } = MODES[mode];
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      if (cell.mine && !cell.flagged) cell.revealed = true;
+      if (cell.flagged && !cell.mine) cell.wrongFlag = true;
+    }
+}
+
+function autoFlagRemaining() {
+  const { rows, cols } = MODES[mode];
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      if (cell.mine && !cell.flagged) { cell.flagged = true; flagCount++; }
+    }
+  updateHUD();
+}
+
+function checkWin() {
+  const { rows, cols } = MODES[mode];
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      if (!cell.mine && !cell.revealed) return false;
+    }
+  return true;
+}
+
+/* ── Render ── */
+function renderGrid() {
+  const { rows, cols, cell: sz, numClass } = MODES[mode];
+  const g = document.getElementById('grid');
+  g.style.gridTemplateColumns = `repeat(${cols}, ${sz}px)`;
+  g.style.setProperty('--cell', sz + 'px');
+
+  g.innerHTML = '';
+  const frag = document.createDocumentFragment();
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = grid[r][c];
+      const div = document.createElement('div');
+      div.className = 'cell';
+
+      if (cell.wrongFlag) {
+        div.classList.add('wrongflag');
+        div.textContent = '❌';
+      } else if (cell.revealed) {
+        div.classList.add('revealed');
+        if (cell.mine) {
+          div.classList.add(cell.exploded ? 'exploded' : 'mine-shown');
+          div.textContent = '💣';
+        } else if (cell.adj > 0) {
+          div.textContent = cell.adj;
+          div.classList.add(numClass + cell.adj);
+        }
+      } else if (cell.flagged) {
+        div.classList.add('flagged');
+        div.textContent = '🚩';
+      } else {
+        div.classList.add('hidden');
+      }
+
+      /* click */
+      div.addEventListener('click', () => handleClick(r, c));
+      div.addEventListener('contextmenu', (e) => handleFlag(r, c, e));
+
+      /* long-press flag for touch */
+      let pressTimer;
+      div.addEventListener('touchstart', () => { pressTimer = setTimeout(() => handleFlag(r, c, null), 420); }, { passive: true });
+      div.addEventListener('touchend',  () => clearTimeout(pressTimer));
+      div.addEventListener('touchmove', () => clearTimeout(pressTimer));
+
+      frag.appendChild(div);
+    }
+  }
+  g.appendChild(frag);
+}
+
+function updateHUD() {
+  const { mines } = MODES[mode];
+  document.getElementById('mines-left').textContent =
+    String(Math.max(0, mines - flagCount)).padStart(3, '0');
+  document.getElementById('timer').textContent = String(timerVal).padStart(3, '0');
+}
+
+/* ── Start ── */
+initGame();
+</script>
+</body>
+</html>
