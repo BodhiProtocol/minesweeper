@@ -178,6 +178,15 @@
     .kn7 { color: #2e7d32; }
     .kn8 { color: #4e342e; }
 
+    /* ── Best time ───────────────────────────── */
+    #best-time {
+      font-size: 13px;
+      color: var(--text-secondary);
+      min-height: 1.2em;
+      text-align: center;
+    }
+    #best-time span { color: #f5a623; font-weight: 700; }
+
     /* ── Message ─────────────────────────────── */
     #msg {
       font-size: 15px;
@@ -186,6 +195,22 @@
       min-height: 1.5em;
       text-align: center;
     }
+
+    /* ── How to play hint ───────────────────── */
+    #hint {
+      font-size: 13px;
+      color: var(--text-secondary);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      text-align: center;
+      max-width: 520px;
+      width: 100%;
+      transition: opacity 0.4s;
+    }
+    #hint.hidden { opacity: 0; pointer-events: none; }
+    #hint b { color: var(--text-primary); }
 
     /* ── Footer ──────────────────────────────── */
     footer {
@@ -334,8 +359,9 @@
   <text x="332" y="152" text-anchor="middle" font-family="system-ui" font-size="12" fill="#5a9fd4" font-weight="600">🧠 Adult</text>
 
   <!-- Bodhi Protocol wordmark -->
-  <text x="610" y="156" font-family="system-ui,-apple-system,sans-serif" font-size="14" fill="#ffffff" font-weight="700">Bodhi</text>
-  <text x="646" y="156" font-family="system-ui,-apple-system,sans-serif" font-size="14" fill="#38BDF8" font-weight="700">Protocol</text>
+  <text font-family="system-ui,-apple-system,sans-serif" font-size="14" font-weight="700" y="156">
+    <tspan x="600" fill="#ffffff">Bodhi</tspan><tspan fill="#38BDF8"> Protocol</tspan>
+  </text>
 </svg>
 </div>
 
@@ -358,6 +384,10 @@
 </div>
 
 <!-- ── Message ─────────────────────────────────────────────────────────── -->
+<div id="hint">
+  👆 <b>Left click</b> to reveal &nbsp;·&nbsp; 🚩 <b>Right click</b> to flag &nbsp;·&nbsp; 💣 Clear all safe cells to win
+</div>
+<div id="best-time"></div>
 <div id="msg"></div>
 
 <footer>
@@ -403,7 +433,9 @@ function initGame() {
 
   document.getElementById('smiley').textContent = '😊';
   document.getElementById('msg').textContent = '';
+  document.getElementById('hint').classList.remove('hidden');
   updateHUD();
+  updateBestTime();
   renderGrid();
 }
 
@@ -466,6 +498,7 @@ function handleClick(r, c) {
   if (firstClick) {
     firstClick = false;
     state = 'playing';
+    document.getElementById('hint').classList.add('hidden');
     placeMines(r, c);
     timerTick = setInterval(() => {
       timerVal = Math.min(timerVal + 1, 999);
@@ -492,8 +525,15 @@ function handleClick(r, c) {
     state = 'won';
     clearInterval(timerTick);
     document.getElementById('smiley').textContent = '😎';
+    const key = 'best_' + mode;
+    const prev = parseInt(localStorage.getItem(key)) || Infinity;
+    const isNew = timerVal < prev;
+    if (isNew) localStorage.setItem(key, timerVal);
     document.getElementById('msg').textContent =
-      mode === 'kids' ? '🎉 Amazing! You Won!' : `✅ Board cleared! Time: ${timerVal}s`;
+      mode === 'kids'
+        ? '🎉 Amazing! You Won!'
+        : `✅ Board cleared! Time: ${timerVal}s${isNew ? ' 🏆 New Best!' : ''}`;
+    updateBestTime();
     autoFlagRemaining();
   }
 
@@ -591,6 +631,12 @@ function renderGrid() {
     }
   }
   g.appendChild(frag);
+}
+
+function updateBestTime() {
+  const best = localStorage.getItem('best_' + mode);
+  const el = document.getElementById('best-time');
+  el.innerHTML = best ? `🏆 Best: <span>${best}s</span>` : '';
 }
 
 function updateHUD() {
