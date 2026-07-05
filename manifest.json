@@ -1,0 +1,11 @@
+{
+  "name": "Minesweeper — BodhiProtocol",
+  "short_name": "Mines",
+  "description": "Classic Minesweeper. Think. Flag. Survive.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f0f0f0",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
